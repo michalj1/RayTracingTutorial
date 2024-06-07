@@ -6,12 +6,25 @@
 RWTexture2D<float4> Result;
 float4x4 _CameraToWorld;
 float4x4 _CameraInverseProjection;
+Texture2D _SkyboxTexture;
+SamplerState sampler_SkyboxTexture;
 
+static const float PI = 3.14159265359f;
+static const float GROUND_PLANE = 0.0f;
+
+// Structs
 struct Ray {
     float3 origin;
     float3 direction;
 };
 
+struct RayHit {
+    float3 position;
+    float3 normal;
+    float distance;
+};
+
+// Constructors
 Ray CreateRay(float3 origin, float3 direction) {
     Ray ray;
     ray.origin = origin;
@@ -19,6 +32,15 @@ Ray CreateRay(float3 origin, float3 direction) {
     return ray;
 }
 
+RayHit CreateRayHit() {
+    RayHit hit;
+    hit.position = float3(0.0f, 0.0f, 0.0f);
+    hit.normal = float3(0.0f, 0.0f, 0.0f);
+    hit.distance = 1.#INF;
+    return hit;
+}
+
+// Helper functions
 Ray CreateCameraRay(float2 uv) {
     // Transform camera origin to world coordinates
     float3 origin = mul(_CameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
@@ -33,10 +55,68 @@ Ray CreateCameraRay(float2 uv) {
     return CreateRay(origin, direction);
 }
 
-[numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
-{
-    // TODO: insert actual code here!
+void IntersectGroundPlane(Ray ray, inout RayHit bestHit) {
+    float t = (GROUND_PLANE - ray.origin.y) / ray.direction.y;
+    if (t > 0 && t < bestHit.distance) {
+        bestHit.distance = t;
+        bestHit.position = ray.origin + t * ray.direction;
+        bestHit.normal = float3(0.0f, 1.0f, 0.0f);
+    }
+}
 
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+void IntersectSphere(Ray ray, inout RayHit bestHit, float4 sphere) {
+    float3 d = sphere.xyz - ray.origin;
+    float p1 = dot(d, ray.direction);
+    float p2sqr = p1 * p1 - dot(d, d) + sphere.w * sphere.w; // Where sphere.w is the radius
+    if (p2sqr < 0) {
+        return; // No solution exists (no intersection)
+    }
+    float p2 = sqrt(p2sqr);
+    
+    float t = p1 - p2;
+    if (t <= 0) {
+        t = p1 + p2;
+    }
+
+    if (t > 0 && t < bestHit.distance) {
+        bestHit.distance = t;
+        bestHit.position = ray.origin + t * ray.direction;
+        bestHit.normal = normalize(bestHit.position - sphere.xyz);
+    }
+}
+
+RayHit Trace(Ray ray) {
+    RayHit hit = CreateRayHit();
+    IntersectGroundPlane(ray, hit);
+    IntersectSphere(ray, hit, float4(4, 3, 2, 5));
+    return hit;
+}
+
+float3 Shade(inout Ray ray, RayHit hit) {
+    if (hit.distance != 1.#INF) {
+        return hit.normal * 0.5f + 0.5f;
+    } else {
+        // Sample skybox
+        float theta = acos(ray.direction.y) / -PI;
+        float phi = atan2(ray.direction.x, -ray.direction.z) / -PI * 0.5f; 
+        return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
+    }
+}
+
+// Main rendering code
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID) {
+    // Get dimensions of render texture
+    uint width, height;
+    Result.GetDimensions(width, height);
+
+    // Transform current pixel to the range [-1, 1]
+    float2 uv = float2((id.xy + float2(0.5f, 0.5f)) / float2(width, height) * 2.0f - 1.0f);
+
+    // Create a ray for this pixel
+    Ray ray = CreateCameraRay(uv);
+    RayHit hit = Trace(ray);
+
+    // Write colors
+    Result[id.xy] = float4(Shade(ray, hit), 1.0f);
 }
