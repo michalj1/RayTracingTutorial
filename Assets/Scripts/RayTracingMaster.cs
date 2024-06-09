@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class RayTracingMaster : MonoBehaviour {
@@ -6,7 +7,8 @@ public class RayTracingMaster : MonoBehaviour {
 
     private RenderTexture _target;
     private Camera _camera;
-
+    private Material _addMaterial;
+    private uint _currentSample = 0;
 
     /* Rendering functions */
 
@@ -32,7 +34,12 @@ public class RayTracingMaster : MonoBehaviour {
         RayTracingShader.Dispatch(0, numThreadGroupsX, numThreadGroupsY, 1);
 
         // Display on screen
-        Graphics.Blit(_target, destination);
+        if (_addMaterial == null) {
+            _addMaterial = new Material(Shader.Find("Hidden/AddShader"));
+        }
+        _addMaterial.SetFloat("_Sample", _currentSample);
+        Graphics.Blit(_target, destination, _addMaterial);
+        _currentSample += 1;
     }
 
     /*
@@ -44,6 +51,16 @@ public class RayTracingMaster : MonoBehaviour {
             _target = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             _target.enableRandomWrite = true;
             _target.Create();
+        }
+    }
+
+    /* 
+    Calculates current sample every frame
+    */
+    private void Update() {
+        if (transform.hasChanged) {
+            _currentSample = 0;
+            transform.hasChanged = false;
         }
     }
 
@@ -63,5 +80,7 @@ public class RayTracingMaster : MonoBehaviour {
         RayTracingShader.SetMatrix("_CameraToWorld", _camera.cameraToWorldMatrix);
         RayTracingShader.SetMatrix("_CameraInverseProjection", _camera.projectionMatrix.inverse);
         RayTracingShader.SetTexture(0, "_SkyboxTexture", SkyboxTexture);
+        Vector2 offset = new Vector2(UnityEngine.Random.value, UnityEngine.Random.value);
+        RayTracingShader.SetVector("_PixelOffset", offset);
     }
 }

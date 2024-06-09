@@ -6,6 +6,7 @@
 RWTexture2D<float4> Result;
 float4x4 _CameraToWorld;
 float4x4 _CameraInverseProjection;
+float2 _PixelOffset;
 Texture2D _SkyboxTexture;
 SamplerState sampler_SkyboxTexture;
 
@@ -111,7 +112,7 @@ void CSMain (uint3 id : SV_DispatchThreadID) {
     Result.GetDimensions(width, height);
 
     // Transform current pixel to the range [-1, 1]
-    float2 uv = float2((id.xy + float2(0.5f, 0.5f)) / float2(width, height) * 2.0f - 1.0f);
+    float2 uv = float2((id.xy + _PixelOffset) / float2(width, height) * 2.0f - 1.0f);
 
     // Create a ray for this pixel
     Ray ray = CreateCameraRay(uv);
