@@ -17,11 +17,11 @@ public class CameraController : MonoBehaviour {
         Transform transform = Camera.main.transform;
 
         // Rotate camera
-        Vector3 rotation = horizontalRotation * new Vector3(0, 1, 0) + -verticalRotation * new Vector3(1, 0, 0);
+        Vector3 rotation = horizontalRotation * new Vector3(0, 1, 0) + verticalRotation * new Vector3(-1, 0, 0);
         transform.eulerAngles = transform.eulerAngles + rotationSpeed * rotation;
 
         // Move camera
-        Vector3 movement = forwardMovement * transform.forward + sidewaysMovement * transform.right;
+        Vector3 movement = forwardMovement * new Vector3(0, 0, 1) + sidewaysMovement * new Vector3(1, 0, 0);
         transform.Translate(moveSpeed * movement);
 
     }
