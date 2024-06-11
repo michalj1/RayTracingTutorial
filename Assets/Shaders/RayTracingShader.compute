@@ -17,6 +17,7 @@ static const float GROUND_PLANE = 0.0f;
 struct Ray {
     float3 origin;
     float3 direction;
+    float3 energy;
 };
 
 struct RayHit {
@@ -30,6 +31,7 @@ Ray CreateRay(float3 origin, float3 direction) {
     Ray ray;
     ray.origin = origin;
     ray.direction = direction;
+    ray.energy = float3(1.0f, 1.0f, 1.0f);
     return ray;
 }
 
@@ -90,17 +92,35 @@ RayHit Trace(Ray ray) {
     RayHit hit = CreateRayHit();
     IntersectGroundPlane(ray, hit);
     IntersectSphere(ray, hit, float4(4, 3, 2, 5));
+    IntersectSphere(ray, hit, float4(15, 1, 23, 3));
+    IntersectSphere(ray, hit, float4(13, 3, 9, 6));
+    IntersectSphere(ray, hit, float4(-7, 5, 8, 8));
     return hit;
 }
 
 float3 Shade(inout Ray ray, RayHit hit) {
     if (hit.distance != 1.#INF) {
-        return hit.normal * 0.5f + 0.5f;
+        // Change in energy due to reflection
+        float3 specular = float3(0.6f, 0.6f, 0.6f);
+
+        // Reflect ray
+        ray.origin = hit.position + hit.normal * 0.001f;
+        ray.direction = reflect(ray.direction, hit.normal);
+        ray.energy *= specular;
+
+        // Return nothing?
+        return float3(0.0f, 0.0f, 0.0f);
     } else {
+        // No reflection off of sky
+        ray.energy = 0.0f;
+
         // Sample skybox
         float theta = acos(ray.direction.y) / -PI;
-        float phi = atan2(ray.direction.x, -ray.direction.z) / -PI * 0.5f; 
-        return _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
+        float phi = atan2(ray.direction.x, -ray.direction.z) / -PI * 0.5f;
+        float3 sample = _SkyboxTexture.SampleLevel(sampler_SkyboxTexture, float2(phi, theta), 0).xyz;
+
+        // Return sampled value
+        return sample; 
     }
 }
 
@@ -115,9 +135,18 @@ void CSMain (uint3 id : SV_DispatchThreadID) {
     float2 uv = float2((id.xy + _PixelOffset) / float2(width, height) * 2.0f - 1.0f);
 
     // Create a ray for this pixel
+    float3 result = float3(0.0f, 0.0f, 0.0f);
     Ray ray = CreateCameraRay(uv);
-    RayHit hit = Trace(ray);
+    for (int i = 0; i < 8; i++) {
+        RayHit hit = Trace(ray);
+        result += ray.energy * Shade(ray, hit);
+
+        // Check ray energy
+        if (!any(ray.energy)) {
+            break;
+        }
+    }
 
     // Write colors
-    Result[id.xy] = float4(Shade(ray, hit), 1.0f);
+    Result[id.xy] = float4(result, 1.0f);
 }
