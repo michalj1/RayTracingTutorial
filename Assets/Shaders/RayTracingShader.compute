@@ -7,6 +7,7 @@ RWTexture2D<float4> Result;
 float4x4 _CameraToWorld;
 float4x4 _CameraInverseProjection;
 float2 _PixelOffset;
+float4 _DirectionalLight;
 Texture2D _SkyboxTexture;
 SamplerState sampler_SkyboxTexture;
 
@@ -100,16 +101,25 @@ RayHit Trace(Ray ray) {
 
 float3 Shade(inout Ray ray, RayHit hit) {
     if (hit.distance != 1.#INF) {
-        // Change in energy due to reflection
-        float3 specular = float3(0.6f, 0.6f, 0.6f);
+        // Energy change and color
+        float3 specular = float3(1.0f, 0.78f, 0.34f); // Gold reflection
+        float3 diffuse = float3(0.8f, 0.8f, 0.8f); // White diffuse
 
         // Reflect ray
         ray.origin = hit.position + hit.normal * 0.001f;
         ray.direction = reflect(ray.direction, hit.normal);
         ray.energy *= specular;
 
-        // Return nothing?
-        return float3(0.0f, 0.0f, 0.0f);
+        // Check for directional light shadow
+        bool shade = false;
+        Ray shadowRay = CreateRay(hit.position + hit.normal * 0.001f, -1 * _DirectionalLight.xyz);
+        RayHit shadowHit = Trace(shadowRay);
+        if (shadowHit.distance != 1.#INF) {
+            return float3(0.0f, 0.0f, 0.0f);
+        }
+
+        // Return diffuse color
+        return saturate(dot(hit.normal, _DirectionalLight.xyz) * -1) * _DirectionalLight.w * diffuse;
     } else {
         // No reflection off of sky
         ray.energy = 0.0f;

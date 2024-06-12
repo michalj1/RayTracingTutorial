@@ -4,6 +4,7 @@ using UnityEngine;
 public class RayTracingMaster : MonoBehaviour {
     public ComputeShader RayTracingShader;
     public Texture SkyboxTexture;
+    public Light DirectionalLight;
 
     private RenderTexture _target;
     private Camera _camera;
@@ -82,5 +83,7 @@ public class RayTracingMaster : MonoBehaviour {
         RayTracingShader.SetTexture(0, "_SkyboxTexture", SkyboxTexture);
         Vector2 offset = new Vector2(UnityEngine.Random.value, UnityEngine.Random.value);
         RayTracingShader.SetVector("_PixelOffset", offset);
+        Vector3 light = DirectionalLight.transform.forward;
+        RayTracingShader.SetVector("_DirectionalLight", new Vector4(light.x, light.y, light.z, DirectionalLight.intensity));
     }
 }
